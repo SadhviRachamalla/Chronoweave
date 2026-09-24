@@ -1,7 +1,0 @@
-{
-  "name": "Child Task B",
-  "jobType": "ECHO",
-  "payload": {"step": 2},
-  "priority": 5,
-  "dependsOnJobIds": ["047e65b1-0ea4-4810-8659-91710a8382c9"]
-}

@@ -1,7 +1,0 @@
-{
-  "idempotencyKey": "unique-idempotent-key-999",
-  "name": "Idempotent Test Job",
-  "jobType": "ECHO",
-  "payload": {"data": "test idempotency"},
-  "priority": 5
-}

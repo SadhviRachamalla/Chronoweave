@@ -1,6 +1,0 @@
-{
-  "name": "Normal Echo Job",
-  "jobType": "ECHO",
-  "payload": {"msg": "Hello Chronoweave!"},
-  "priority": 5
-}

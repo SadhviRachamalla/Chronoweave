@@ -1,6 +1,0 @@
-{
-  "name": "Parent Task A",
-  "jobType": "ECHO",
-  "payload": {"step": 1},
-  "priority": 5
-}
