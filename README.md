@@ -105,7 +105,7 @@ curl -X POST http://localhost:8080/api/v1/jobs/{jobId}/requeue
 ```
 
 ## Verification & Test Results
-- **Unit Tests**: Executed `mvn test` across all modules: **100% Passed (3/3 tests: JobState, BackoffUtil, DagValidation)**.
+- **Unit Tests**: Executed `mvn clean test` across all modules: **100% Passed (7/7 unit tests: JobState, BackoffUtil, DagValidation, JobServiceUnitTest, WorkerExecutorsUnitTest)**.
 - **Clean Build**: Compiled successfully on OpenJDK 21 & Maven 3.9.
 
 ## Design Decisions & Trade-Offs
