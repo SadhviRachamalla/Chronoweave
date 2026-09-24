@@ -1,0 +1,6 @@
+{
+  "name": "Failing Job Test",
+  "jobType": "FAIL_ON_PURPOSE",
+  "maxAttempts": 2,
+  "retryBackoffMs": 500
+}

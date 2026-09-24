@@ -25,8 +25,8 @@ public class JobController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<JobResponse> getJob(@PathVariable String id) {
+    @GetMapping("/detail/{id}")
+    public ResponseEntity<JobResponse> getJob(@PathVariable("id") String id) {
         return ResponseEntity.ok(jobService.getJob(id));
     }
 
@@ -35,18 +35,18 @@ public class JobController {
         return ResponseEntity.ok(jobService.getAllJobs());
     }
 
-    @GetMapping("/{id}/executions")
-    public ResponseEntity<List<JobExecutionResponse>> getJobExecutions(@PathVariable String id) {
+    @GetMapping("/detail/{id}/executions")
+    public ResponseEntity<List<JobExecutionResponse>> getJobExecutions(@PathVariable("id") String id) {
         return ResponseEntity.ok(jobService.getJobExecutions(id));
     }
 
-    @PostMapping("/{id}/requeue")
-    public ResponseEntity<JobResponse> requeueDlqJob(@PathVariable String id) {
+    @PostMapping("/detail/{id}/requeue")
+    public ResponseEntity<JobResponse> requeueDlqJob(@PathVariable("id") String id) {
         return ResponseEntity.ok(jobService.requeueDlqJob(id));
     }
 
-    @PostMapping("/{id}/cancel")
-    public ResponseEntity<JobResponse> cancelJob(@PathVariable String id) {
+    @PostMapping("/detail/{id}/cancel")
+    public ResponseEntity<JobResponse> cancelJob(@PathVariable("id") String id) {
         return ResponseEntity.ok(jobService.cancelJob(id));
     }
 }

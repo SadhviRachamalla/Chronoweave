@@ -62,7 +62,7 @@ public class JobEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "job_dependencies",
         joinColumns = @JoinColumn(name = "job_id"),

@@ -100,12 +100,16 @@ curl -X POST http://localhost:8080/api/v1/jobs \
     "jobType": "ECHO"
   }'
 
+# Get Job Details
+curl http://localhost:8080/api/v1/jobs/detail/{jobId}
+
 # Requeue DLQ Job
-curl -X POST http://localhost:8080/api/v1/jobs/{jobId}/requeue
+curl -X POST http://localhost:8080/api/v1/jobs/detail/{jobId}/requeue
 ```
 
 ## Verification & Test Results
 - **Unit Tests**: Executed `mvn clean test` across all modules: **100% Passed (7/7 unit tests: JobState, BackoffUtil, DagValidation, JobServiceUnitTest, WorkerExecutorsUnitTest)**.
+- **Docker Compose**: Live verified PostgreSQL 16, Redis 7, Kafka 3.7, `scheduler-api`, `worker-1`, `worker-2`.
 - **Clean Build**: Compiled successfully on OpenJDK 21 & Maven 3.9.
 
 ## Design Decisions & Trade-Offs

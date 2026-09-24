@@ -4,11 +4,11 @@
 SCHEDULER_URL="http://localhost:8080"
 
 echo "=== 1. Checking Scheduler Health Endpoint ==="
-curl -s "${SCHEDULER_URL}/actuator/health" | grep -q "UP" && echo "Scheduler is UP!" || echo "Scheduler is DOWN"
+curl -s "${SCHEDULER_URL}/actuator/health"
 
 echo ""
 echo "=== 2. Submitting Normal ECHO Job ==="
-curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
+curl -s -X POST "${SCHEDULER_URL}/api/v1/jobs" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Demo Echo Job",
@@ -19,7 +19,7 @@ curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
 
 echo ""
 echo "=== 3. Submitting High-Priority Job ==="
-curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
+curl -s -X POST "${SCHEDULER_URL}/api/v1/jobs" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "High Priority Compute",
@@ -29,7 +29,7 @@ curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
 
 echo ""
 echo "=== 4. Submitting Idempotent Duplicate Job ==="
-curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
+curl -s -X POST "${SCHEDULER_URL}/api/v1/jobs" \
   -H "Content-Type: application/json" \
   -d '{
     "idempotencyKey": "demo-unique-key-101",
@@ -40,7 +40,7 @@ curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
 
 echo ""
 echo "=== Resubmitting Same Idempotency Key (Should return original job) ==="
-curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
+curl -s -X POST "${SCHEDULER_URL}/api/v1/jobs" \
   -H "Content-Type: application/json" \
   -d '{
     "idempotencyKey": "demo-unique-key-101",
@@ -51,7 +51,7 @@ curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
 
 echo ""
 echo "=== 5. Submitting Failing Job for Retry -> DLQ ==="
-curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
+curl -s -X POST "${SCHEDULER_URL}/api/v1/jobs" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Intentional Failure",
@@ -63,3 +63,4 @@ curl -X POST "${SCHEDULER_URL}/api/v1/jobs" \
 echo ""
 echo "=== 6. Listing All Jobs ==="
 curl -s "${SCHEDULER_URL}/api/v1/jobs"
+echo ""

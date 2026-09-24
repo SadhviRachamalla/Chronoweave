@@ -23,8 +23,6 @@ import java.util.stream.Collectors;
 public class JobService {
 
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
-    private static final String DISPATCH_TOPIC = "chronoweave-dispatch";
-    private static final String DLQ_TOPIC = "chronoweave-dlq";
 
     private final JobRepository jobRepository;
     private final JobExecutionRepository executionRepository;
@@ -70,7 +68,6 @@ public class JobService {
         job.setMaxAttempts(request.maxAttempts());
         job.setRetryBackoffMs(request.retryBackoffMs());
 
-        // Handle parent dependencies
         if (request.dependsOnJobIds() != null && !request.dependsOnJobIds().isEmpty()) {
             Set<JobEntity> parents = new HashSet<>();
             for (String parentId : request.dependsOnJobIds()) {
@@ -82,7 +79,6 @@ public class JobService {
             job.setDependencies(parents);
         }
 
-        // Check if ready to be QUEUED or stay PENDING until dependencies succeed
         if (areDependenciesSucceeded(job)) {
             job.transitionTo(JobState.QUEUED);
         }
@@ -92,18 +88,21 @@ public class JobService {
         return mapToResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public JobResponse getJob(String id) {
         JobEntity job = jobRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Job not found: " + id));
         return mapToResponse(job);
     }
 
+    @Transactional(readOnly = true)
     public List<JobResponse> getAllJobs() {
         return jobRepository.findAll().stream()
             .map(this::mapToResponse)
             .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<JobExecutionResponse> getJobExecutions(String jobId) {
         return executionRepository.findByJobIdOrderByAttemptAsc(jobId).stream()
             .map(e -> new JobExecutionResponse(

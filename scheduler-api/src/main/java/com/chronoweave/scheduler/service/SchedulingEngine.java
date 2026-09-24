@@ -15,7 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,44 +37,40 @@ public class SchedulingEngine {
     private final JobService jobService;
     private final RedissonClient redissonClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final TransactionTemplate transactionTemplate;
 
     public SchedulingEngine(JobRepository jobRepository,
                             JobExecutionRepository executionRepository,
                             WorkerRegistryService workerRegistryService,
                             JobService jobService,
                             RedissonClient redissonClient,
-                            KafkaTemplate<String, Object> kafkaTemplate) {
+                            KafkaTemplate<String, Object> kafkaTemplate,
+                            PlatformTransactionManager transactionManager) {
         this.jobRepository = jobRepository;
         this.executionRepository = executionRepository;
         this.workerRegistryService = workerRegistryService;
         this.jobService = jobService;
         this.redissonClient = redissonClient;
         this.kafkaTemplate = kafkaTemplate;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Scheduled(fixedDelay = 2000)
     public void runSchedulerCycle() {
         RLock leaderLock = redissonClient.getLock(LEADER_LOCK_KEY);
         try {
-            // Try acquiring leader lock for 100ms, lease time 10s
             boolean isLeader = leaderLock.tryLock(100, 10000, TimeUnit.MILLISECONDS);
             if (!isLeader) {
-                return; // Standby instance, skip execution
+                return;
             }
 
             try {
-                // 1. Check for pending jobs whose dependencies are fulfilled
-                checkPendingJobs();
-
-                // 2. Apply priority aging to queued jobs
-                applyPriorityAging();
-
-                // 3. Dispatch queued jobs to Kafka with capacity & locks
-                dispatchQueuedJobs();
-
-                // 4. Recover stale workers & stalled jobs
-                recoverStaleWorkers();
-
+                transactionTemplate.executeWithoutResult(status -> {
+                    checkPendingJobs();
+                    applyPriorityAging();
+                    dispatchQueuedJobs();
+                    recoverStaleWorkers();
+                });
             } finally {
                 if (leaderLock.isHeldByCurrentThread()) {
                     leaderLock.unlock();
@@ -86,7 +83,6 @@ public class SchedulingEngine {
         }
     }
 
-    @Transactional
     public void checkPendingJobs() {
         List<JobEntity> pendingJobs = jobRepository.findByState(JobState.PENDING);
         for (JobEntity job : pendingJobs) {
@@ -98,13 +94,10 @@ public class SchedulingEngine {
         }
     }
 
-    @Transactional
     public void applyPriorityAging() {
-        // Increment effective priority by 1 for all QUEUED jobs to prevent starvation
         jobRepository.applyPriorityAging(1);
     }
 
-    @Transactional
     public void dispatchQueuedJobs() {
         Instant now = Instant.now();
         List<JobEntity> schedulable = jobRepository.findSchedulableJobs(JobState.QUEUED, now);
@@ -113,7 +106,6 @@ public class SchedulingEngine {
         if (schedulable.isEmpty()) return;
 
         for (JobEntity job : schedulable) {
-            // Select suitable worker
             WorkerHeartbeat selectedWorker = selectWorkerForJob(job, activeWorkers);
             if (selectedWorker == null) {
                 log.debug("No available worker with capability '{}' and free slots for job {}",
@@ -121,7 +113,6 @@ public class SchedulingEngine {
                 continue;
             }
 
-            // Acquire per-job lock to prevent double-dispatch
             RLock jobLock = redissonClient.getLock(JOB_LOCK_PREFIX + job.getId());
             try {
                 if (jobLock.tryLock(50, 5000, TimeUnit.MILLISECONDS)) {
@@ -131,13 +122,11 @@ public class SchedulingEngine {
                         job.setCurrentAttempt(job.getCurrentAttempt() + 1);
                         jobRepository.save(job);
 
-                        // Audit execution start
                         JobExecutionEntity exec = new JobExecutionEntity(
                             job.getId(), job.getCurrentAttempt(), selectedWorker.workerId(), Instant.now(), "RUNNING"
                         );
                         executionRepository.save(exec);
 
-                        // Dispatch to Kafka
                         JobDispatchEvent event = new JobDispatchEvent(
                             job.getId(), job.getJobType(), job.getPayload(),
                             job.getRequiredCapability(), job.getCurrentAttempt(), job.getRetryBackoffMs()
@@ -165,7 +154,6 @@ public class SchedulingEngine {
             .orElse(null);
     }
 
-    @Transactional
     public void recoverStaleWorkers() {
         List<String> staleWorkerIds = workerRegistryService.getStaleWorkerIds();
         for (String staleId : staleWorkerIds) {
@@ -177,7 +165,7 @@ public class SchedulingEngine {
                     job.transitionTo(JobState.RETRYING);
                     job.setScheduledAt(Instant.now().plusMillis(backoff));
                     job.setAssignedWorkerId(null);
-                    job.transitionTo(JobState.QUEUED); // Re-queue for retry
+                    job.transitionTo(JobState.QUEUED);
                     jobRepository.save(job);
                     log.info("Recovered stuck job {} from stale worker {}, scheduled for retry in {} ms", job.getId(), staleId, backoff);
                 } else {
