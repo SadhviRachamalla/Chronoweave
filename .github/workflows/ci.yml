@@ -20,10 +20,37 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
-    - name: Build with Maven
-      run: mvn clean test -B
+    - name: Run Maven Tests
+      run: mvn clean verify -B
 
-    - name: Build Docker images
+    - name: Build and Start Docker Compose Stack
+      run: docker compose up --build -d
+
+    - name: Wait for Scheduler Health
       run: |
-        docker build -t chronoweave-scheduler:latest -f scheduler-api/Dockerfile .
-        docker build -t chronoweave-worker:latest -f worker/Dockerfile .
+        echo "Waiting for scheduler service health..."
+        for i in {1..30}; do
+          if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+            echo "Scheduler is healthy!"
+            break
+          fi
+          echo "Waiting for scheduler... ($i/30)"
+          sleep 2
+        done
+
+    - name: Submit Demo Job & Verify HTTP Response
+      run: |
+        RESPONSE=$(curl -sf -X POST http://localhost:8080/api/v1/jobs \
+          -H "Content-Type: application/json" \
+          -d '{
+            "name": "CI Smoke Task",
+            "jobType": "ECHO",
+            "payload": {"message": "CI Test Payload"},
+            "priority": 5
+          }')
+        echo "Job Submission Response: $RESPONSE"
+        echo "$RESPONSE" | grep -q '"state":"QUEUED"' || echo "$RESPONSE" | grep -q '"id":'
+
+    - name: Docker Smoke Test Cleanup
+      if: always()
+      run: docker compose down -v

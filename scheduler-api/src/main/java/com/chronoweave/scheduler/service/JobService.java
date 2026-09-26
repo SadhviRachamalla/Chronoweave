@@ -83,9 +83,20 @@ public class JobService {
             job.transitionTo(JobState.QUEUED);
         }
 
-        JobEntity saved = jobRepository.save(job);
-        log.info("Submitted job {} with initial state {}", saved.getId(), saved.getState());
-        return mapToResponse(saved);
+        try {
+            JobEntity saved = jobRepository.save(job);
+            log.info("Submitted job {} with initial state {}", saved.getId(), saved.getState());
+            return mapToResponse(saved);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
+                Optional<JobEntity> existing = jobRepository.findByIdempotencyKey(request.idempotencyKey());
+                if (existing.isPresent()) {
+                    log.info("Idempotent submission race recovered for key: {}", request.idempotencyKey());
+                    return mapToResponse(existing.get());
+                }
+            }
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)

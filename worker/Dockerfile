@@ -8,7 +8,10 @@ COPY worker worker
 RUN mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S appgroup && adduser -S app -G appgroup
 WORKDIR /app
 COPY --from=build /app/worker/target/worker-1.0.0-SNAPSHOT.jar app.jar
+RUN chown -R app:appgroup /app
+USER app
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

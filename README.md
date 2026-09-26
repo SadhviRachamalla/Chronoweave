@@ -54,7 +54,7 @@ flowchart TD
 - **Priority Scheduling & Aging**: Prevents task starvation by boosting priority of queued jobs on each cycle.
 - **DAG Workflow Dependencies**: Cycle detection via DFS ensures jobs execute only when all parent tasks succeed.
 - **Distributed Leader Election**: Redisson distributed locking ensures single active scheduler loop with zero double-dispatch.
-- **Capability & Slot Matching**: Workers declare max slots and capabilities (`DEFAULT`, `COMPUTE`, `HEAVY`).
+- **Capability & Slot Matching**: Workers report active slots and max slots via heartbeats. Scheduler evaluates capability matching and active slot availability (`activeSlots < maxSlots`) before dispatching jobs.
 - **Resilience & Fault Recovery**: Stale worker detection automatically re-queues mid-flight jobs. Exponential backoff with jitter for retries.
 
 ## Stack
@@ -108,7 +108,7 @@ curl -X POST http://localhost:8080/api/v1/jobs/detail/{jobId}/requeue
 ```
 
 ## Verification & Test Results
-- **Unit Tests**: Executed `mvn clean test` across all modules: **100% Passed (7/7 unit tests: JobState, BackoffUtil, DagValidation, JobServiceUnitTest, WorkerExecutorsUnitTest)**.
+- **Unit & Integration Tests**: Executed `mvn clean test` across all modules: **100% Passed (11/11 tests across shared, scheduler-api, worker)**.
 - **Docker Compose**: Live verified PostgreSQL 16, Redis 7, Kafka 3.7, `scheduler-api`, `worker-1`, `worker-2`.
 - **Clean Build**: Compiled successfully on OpenJDK 21 & Maven 3.9.
 

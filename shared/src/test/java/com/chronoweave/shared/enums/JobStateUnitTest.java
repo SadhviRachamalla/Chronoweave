@@ -18,7 +18,9 @@ class JobStateUnitTest {
         assertTrue(JobState.DEAD_LETTERED.canTransitionTo(JobState.QUEUED));
 
         assertFalse(JobState.PENDING.canTransitionTo(JobState.SUCCEEDED));
+        assertFalse(JobState.QUEUED.canTransitionTo(JobState.SUCCEEDED));
         assertFalse(JobState.SUCCEEDED.canTransitionTo(JobState.QUEUED));
         assertFalse(JobState.FAILED.canTransitionTo(JobState.RUNNING));
+        assertFalse(JobState.CANCELLED.canTransitionTo(JobState.QUEUED));
     }
 }

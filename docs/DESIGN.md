@@ -22,17 +22,16 @@ Chronoweave is a high-performance, fault-tolerant Distributed Job Scheduling & W
                         v                 v                 v
            +----------------+    +----------------+   +-----------------------+
            | Job DB         |    | Locks, Leader  |   | chronoweave-dispatch  |
-           | DAG DB         |    | State & Heart- |   | chronoweave-status   |
-           | Audit History  |    | beats          |   | chronoweave-retry     |
-           +----------------+    +----------------+   | chronoweave-dlq       |
-                                                      +-----------------------+
+           | Dependencies   |    | State & Heart- |   | chronoweave-status    |
+           | Audit History  |    | beats          |   | chronoweave-dlq       |
+           +----------------+    +----------------+   +-----------------------+
                                                                   |
                                                                   v
                                                       +-----------------------+
                                                       |   worker (Node 1..N)  |
                                                       |  - Capability Matching|
-                                                      |  - Slot Semaphore     |
-                                                      |  - Safe Job Executors |
+                                                      |  - Active Slot Tracker|
+                                                      |  - Task Executors     |
                                                       |  - Heartbeat Publisher|
                                                       +-----------------------+
 ```
@@ -67,8 +66,7 @@ Chronoweave is a high-performance, fault-tolerant Distributed Job Scheduling & W
 - `error_message` (TEXT).
 - `output_data` (TEXT).
 
-### 3.3 `workflow_dags` & `job_dependencies`
-- `workflow_dags` (id VARCHAR(36), name VARCHAR(255), created_at TIMESTAMP).
+### 3.3 `job_dependencies`
 - `job_dependencies` (job_id VARCHAR(36), parent_job_id VARCHAR(36), PRIMARY KEY(job_id, parent_job_id)).
 
 ### 3.4 Indexes
@@ -77,11 +75,10 @@ Chronoweave is a high-performance, fault-tolerant Distributed Job Scheduling & W
 - `idx_job_executions_job_id` on `job_executions(job_id)`.
 
 ## 4. Kafka Design
-- **Topics**:
-  - `chronoweave-dispatch` (Partitions: 3, Keys: `job_type` / `required_capability`).
-  - `chronoweave-status` (Partitions: 3, Keys: `job_id`).
-  - `chronoweave-retry` (Partitions: 3, Keys: `job_id`).
-  - `chronoweave-dlq` (Partitions: 3, Keys: `job_id`).
+- **Topic Configuration (`KafkaTopicConfig`)**:
+  - `chronoweave-dispatch` (Partitions: 3, Replicas: 1, Key: `required_capability`).
+  - `chronoweave-status` (Partitions: 3, Replicas: 1, Key: `job_id`).
+  - `chronoweave-dlq` (Partitions: 3, Replicas: 1, Key: `job_id`).
 - **Consumer Groups**:
   - `chronoweave-worker-group` (Workers consuming `chronoweave-dispatch`).
   - `chronoweave-scheduler-group` (Scheduler consuming status / execution result events).
@@ -91,6 +88,7 @@ Chronoweave is a high-performance, fault-tolerant Distributed Job Scheduling & W
 - **Worker Registry & Heartbeats**:
   - Hash: `chronoweave:workers:{worker_id}` -> JSON metadata `{workerId, capabilities, maxSlots, activeSlots, lastHeartbeat}`.
   - Set: `chronoweave:active_workers` -> set of `worker_id` strings.
+  - Note: Staleness is evaluated via timestamp comparison (`now - lastHeartbeat > 15s`); heartbeat keys do not use Redis TTL expiration.
 - **Dispatch Lock**: `chronoweave:job:lock:{job_id}` (Prevents duplicate dispatch).
 
 ## 6. Job State Machine
@@ -122,9 +120,9 @@ Chronoweave is a high-performance, fault-tolerant Distributed Job Scheduling & W
 - Illegal transitions throw `IllegalJobStateTransitionException`.
 
 ## 7. Worker Protocol
-1. **Heartbeat**: Every 5 seconds, worker updates `chronoweave:workers:{worker_id}` with expiration TTL = 15 seconds.
-2. **Capability & Slot Matching**: Workers listen to dispatch messages, verify capacity (`activeSlots < maxSlots`) & capability match (`capabilities.contains(required_capability)`).
-3. **Execution & Idempotent Audit**: Uses atomic state check before starting task execution.
+1. **Heartbeat**: Every 5 seconds, worker updates `chronoweave:workers:{worker_id}` with metadata including `lastHeartbeat` timestamp and `activeSlots`.
+2. **Capability & Slot Matching**: Scheduler checks worker heartbeats to ensure capability matching (`capabilities.contains(required_capability)`) and active slot availability (`activeSlots < maxSlots`) before dispatching jobs. `maxSlots` represents the maximum active capacity threshold evaluated by the scheduler during job dispatch.
+3. **Execution**: Worker executes task handlers matching the dispatched job type.
 4. **Result Reporting**: Emits completion / failure status to `chronoweave-status` Kafka topic.
 
 ## 8. Failure-Recovery Strategy

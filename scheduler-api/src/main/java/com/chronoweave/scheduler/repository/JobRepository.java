@@ -24,8 +24,8 @@ public interface JobRepository extends JpaRepository<JobEntity, String> {
     List<JobEntity> findSchedulableJobs(@Param("state") JobState state, @Param("now") Instant now);
 
     @Transactional
-    @Modifying
-    @Query("UPDATE JobEntity j SET j.effectivePriority = j.priority + :agingBonus WHERE j.state = 'QUEUED'")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE JobEntity j SET j.effectivePriority = CASE WHEN (j.effectivePriority + :agingBonus) <= 1000000 THEN (j.effectivePriority + :agingBonus) ELSE 1000000 END WHERE j.state = 'QUEUED'")
     int applyPriorityAging(@Param("agingBonus") int agingBonus);
 
     List<JobEntity> findByAssignedWorkerIdAndState(String workerId, JobState state);
